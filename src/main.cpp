@@ -1,12 +1,19 @@
 #include <Arduino.h>
 
+//#define WIFICODE 0
+
+#ifdef WIFICODE
 //OTA
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-#include <Update.h>
-#include <web.h>
+  #include <WiFi.h>
+  #include <WiFiClient.h>
+  #include <WebServer.h>
+  #include <ESPmDNS.h>
+  #include <Update.h>
+  #include <web.h>
+#endif
+//Board
+#include "board_def.h"
+
 //GPS
 #include <TinyGPS++.h>
 //Memoria EEPROM
@@ -20,11 +27,14 @@ int Estado_Juego;
 String command;
 //Includes Epaper
 #include <GxEPD.h>
-#include <GxGDEP015OC1/GxGDEP015OC1.cpp>
-#include <GxIO/GxIO_SPI/GxIO_SPI.cpp>
-#include <GxIO/GxIO.cpp>
-//#include <OneWire.h>
-//#include <DallasTemperature.h>
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
+#include <GxIO/GxIO.h>
+
+#include <Fonts/FreeMonoBold12pt7b.h>
+#include <Fonts/FreeSerif12pt7b.h>
+#define DEFALUT_FONT FreeMonoBold12pt7b
+
+
 #include "BitmapGraphics.h"
 
 #include <Fonts/FreeSans9pt7b.h>
@@ -38,19 +48,23 @@ const unsigned char * Images[] =
 	gImage_Iris_1_2,
   gImage_Iris_1_3
 };
-GxIO_Class io(SPI, SS, 22, 21);
-GxEPD_Class display(io, 16, 27);
+GxIO_Class io(SPI, ELINK_SS, ELINK_DC, ELINK_RESET);
+GxEPD_Class display(io, ELINK_RESET, ELINK_BUSY);
 
+#ifdef WIFICODE
 // Variables OTA
 const char* host = "Cocoloco";
-const char* ssid = "global";
-const char* password = "FC9429E5";
+const char* ssid = "globalme";
+const char* password = "perico124";
+
 
 WebServer server(80);
-
+#endif
 //Variables GPS
-static const int RXPin = 17, TXPin = 16;
+static const int RXPin = 32, TXPin = 25;
 static const uint32_t GPSBaud = 9600;
+
+//variables millis
 unsigned long startMillis;  //some global variables available anywhere in the program
 unsigned long currentMillis = 0;
 unsigned long GPSMillis;
@@ -74,16 +88,38 @@ unsigned long distanceKm;
 
 int MedidaHall=0;
 unsigned long Touch =0;
+
+
+void displayInit(void){
+    static bool isInit = false;
+    if (isInit) {
+        return;
+    }
+    isInit = true;
+    display.init(115200);
+    
+    display.eraseDisplay();
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&DEFALUT_FONT);
+    //display.setTextSize(0);
+    //display.fillScreen(GxEPD_WHITE);
+    display.setRotation(1);
+    display.update();
+    display.drawExampleBitmap(gImage_Iris_1_0, 0, 0, 200, 200, GxEPD_BLACK);
+    display.update();
+}
+
 void setup(void) {
   Serial.begin(115200);
   EEPROM.begin(EEPROM_SIZE);
   Estado_Juego=EEPROM.read(0);
 
   //Init Epaper
-  display.init();
-  display.drawExampleBitmap(gImage_Iris_1_0, 0, 0, 200, 200, GxEPD_BLACK);
-  display.update();
+  displayInit();
+  //display.drawExampleBitmap(gImage_Iris_1_0, 0, 0, 200, 200, GxEPD_BLACK);
+  //display.update();
 
+#ifdef WIFICODE
   // Connect to WiFi network
   WiFi.begin(ssid, password);
   Serial.println("");
@@ -143,6 +179,11 @@ void setup(void) {
   });
   server.begin();
 
+#endif
+
+
+
+
 // Inicio GPS
  //Serial.begin(115200, SERIAL_8N1);
   Serial2.begin(GPSBaud, SERIAL_8N1, RXPin , TXPin);
@@ -157,9 +198,9 @@ void loop() {
 
   unsigned long currentMillis = millis();
   
-
+#ifdef WIFICODE
   server.handleClient();
-
+#endif
  // gestion del tiempo
   currentMillis = millis();
 
@@ -172,7 +213,14 @@ void loop() {
     }
   switch (Estado_Juego){
     case 0:
-    Serial.println("Estado 0");
+   // Serial.println("Estado 0");
+    if ((currentMillis - previousMillis) >=2000)
+    {
+      Serial.println("Estado 0 ");
+      Next_Status=1;
+      previousMillis = currentMillis;
+      
+    }
     break;
     case 1: //Nivel 1 del juego
       switch (Current_Status){
@@ -181,19 +229,20 @@ void loop() {
           
         break;
         case 1: //0.1 Espera pulso
-        if (command.equals("a") or MedidaHall >=13  or (Touch <=70 and Touch>=10)) {
+        //if (command.equals("a") or MedidaHall >=13  or (Touch <=70 and Touch>=10)) {
+        if (command.equals("a") ) {
             Next_Status=2;
             command = "NA";
-            MedidaHall=0;
-            Touch=0;
-            
+            //MedidaHall=0;
+            //Touch=0;
           }
         else if ((currentMillis - previousMillis) >=1000)
         {
-            MedidaHall = hallRead();
-            Serial.println("Hall value: " + String(hallRead()));
-            Touch = touchRead(4);
-            Serial.println("Touch  value: " + String(Touch));
+            //MedidaHall = hallRead();
+            //Serial.println("Hall value: " + String(hallRead()));
+            //Touch = touchRead(4);
+            //Serial.println("Touch  value: " + String(Touch));
+            Serial.println("Estado 1");
             previousMillis = currentMillis;
         }
         break;
@@ -202,7 +251,7 @@ void loop() {
           if ((currentMillis - previousMillis) >=1000)
           {
             Serial.println("Abriendo ojo. Cuenta: " + String(Cuenta_Imagen));
-            display.drawExampleBitmap(Images[Cuenta_Imagen], sizeof(gImage_gui), GxEPD::bm_default | GxEPD::bm_partial_update);
+            display.drawExampleBitmap(Images[Cuenta_Imagen], sizeof(gImage_gui), GxEPD::bm_default |GxEPD::bm_flip_x | GxEPD::bm_partial_update);
             Cuenta_Imagen=Cuenta_Imagen+1;
             previousMillis = currentMillis;
 
@@ -215,7 +264,7 @@ void loop() {
         break;
         case 3: //0.3 Leer GPS y Display Loading
           if (Entrada>0){
-            display.drawExampleBitmap(gImage_Iris_1_3_1_3, sizeof(gImage_gui), GxEPD::bm_default | GxEPD::bm_partial_update); //Muestra Localizando en display
+            display.drawExampleBitmap(gImage_Iris_1_3_1_3, sizeof(gImage_gui), GxEPD::bm_flip_x |GxEPD::bm_partial_update); //Muestra Localizando en display
             Entrada=0;
           }
           if (gps.encode(Serial2.read())) {
@@ -242,7 +291,7 @@ void loop() {
         break;
         case 4: //0.4 Mostrar distancia y espera 
         if (Entrada>0){
-            display.drawExampleBitmap(gImage_Iris_1_3, sizeof(gImage_gui), GxEPD::bm_default | GxEPD::bm_partial_update); //Muestra Localizando en display
+            display.drawExampleBitmap(gImage_Iris_1_3, sizeof(gImage_gui), GxEPD::bm_r90 | GxEPD::bm_partial_update); //Muestra Localizando en display
             distanceKm = ((unsigned long)TinyGPSPlus::distanceBetween(gps.location.lat(),gps.location.lng(),TARGET_LAT,TARGET_LON)/1000);
             Serial.print(F("Distancia: ")); 
             Serial.print(String(distanceKm));
@@ -263,7 +312,7 @@ void loop() {
         case 5: // 0.5 Display "GpS no valido sal fuera"
           //showPartialUpdate("GpS no \r valido sal\r fuera");
            if (Entrada>0){
-            display.drawExampleBitmap(gImage_Iris_1_3_1_5, sizeof(gImage_gui), GxEPD::bm_default | GxEPD::bm_partial_update); //Muestra Localizando en display
+            display.drawExampleBitmap(gImage_Iris_1_3_1_5, sizeof(gImage_gui), GxEPD::bm_r90 | GxEPD::bm_partial_update); //Muestra Localizando en display
             Entrada=0;
           }
           if ((currentMillis - previousMillis) >=5000)
@@ -278,7 +327,7 @@ void loop() {
             {
               Cuenta_Imagen=Cuenta_Imagen-1;
               Serial.println("Abriendo ojo. Cuenta: " + String(Cuenta_Imagen));
-              display.drawExampleBitmap(Images[Cuenta_Imagen], sizeof(gImage_gui), GxEPD::bm_default | GxEPD::bm_partial_update);
+              display.drawExampleBitmap(Images[Cuenta_Imagen], sizeof(gImage_gui), GxEPD::bm_r90 | GxEPD::bm_partial_update);
               previousMillis = currentMillis;
 
             }
@@ -321,15 +370,15 @@ void showPartialUpdate(String Text)
   String TextString = String(Text);
   const char* name = "FreeSans9pt7b";
   const GFXfont* f = &FreeSans9pt7b;
-  
+ 
   uint16_t box_x = 60;
   uint16_t box_y = 54;
   uint16_t box_w = 90;
   uint16_t box_h = 50;
   uint16_t cursor_y = box_y + 9;
 
-  display.setRotation(0);
-  display.setFont(f);
+
+  display.setFont(&FreeMonoBold12pt7b);
   display.setTextColor(GxEPD_BLACK);
 
   display.fillRect(box_x, box_y, box_w, box_h, GxEPD_WHITE);
