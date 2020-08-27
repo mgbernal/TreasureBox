@@ -94,7 +94,7 @@ int Entrada=0;
 unsigned long distanceKm; 
 
 int MedidaHall=0;
-unsigned long Touch =0;
+unsigned long Touch =100;
 
 
 void displayInit(void){
@@ -234,22 +234,22 @@ void loop() {
       switch (Current_Status){
         case 0:
           Next_Status=1;
-          
+        
         break;
         case 1: //0.1 Espera pulso
         //if (command.equals("a") or MedidaHall >=13  or (Touch <=70 and Touch>=10)) {
-        if (command.equals("a") ) {
+        if (command.equals("a") || Touch<20 ) {
             Next_Status=2;
             command = "NA";
-            //MedidaHall=0;
-            //Touch=0;
+            MedidaHall=0;
+           Touch=100;
           }
         else if ((currentMillis - previousMillis) >=1000)
         {
-            //MedidaHall = hallRead();
-            //Serial.println("Hall value: " + String(hallRead()));
-            //Touch = touchRead(4);
-            //Serial.println("Touch  value: " + String(Touch));
+            MedidaHall = hallRead();
+            Serial.println("Hall value: " + String(hallRead()));
+            Touch = touchRead(T4);
+            Serial.println("Touch  value: " + String(Touch));
             Serial.println("Estado 1");
             previousMillis = currentMillis;
         }
@@ -379,10 +379,10 @@ void showPartialUpdate(String Text)
   const char* name = "FreeSans9pt7b";
   const GFXfont* f = &FreeSans9pt7b;
  
-  uint16_t box_x = 50;
-  uint16_t box_y = 65;
+  uint16_t box_x = 60;
+  uint16_t box_y = 60;
   uint16_t box_w = 100;
-  uint16_t box_h = 75;
+  uint16_t box_h = 50;
   uint16_t cursor_y = box_y + 9;
 
 
