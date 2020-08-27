@@ -23,7 +23,7 @@
 #define TARGET_LAT 40.783902
 #define TARGET_LON 32.306219
 //Variable Estado
-int Estado_Juego;
+int Estado_Juego=0;
 String command;
 //Includes Epaper
 #include <GxEPD.h>
@@ -96,6 +96,60 @@ unsigned long distanceKm;
 int MedidaHall=0;
 unsigned long Touch =100;
 
+//deep sleep config
+
+#define Threshold 10 /* Greater the value, more the sensitivity */
+
+#define Threshold 10 /* Greater the value, more the sensitivity */
+
+RTC_DATA_ATTR int bootCount = 0;
+touch_pad_t touchPin;
+/*
+Method to print the reason by which ESP32
+has been awaken from sleep
+*/
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch(wakeup_reason)
+  {
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
+  }
+}
+
+/*
+Method to print the touchpad by which ESP32
+has been awaken from sleep
+*/
+void print_wakeup_touchpad(){
+  touch_pad_t pin;
+
+  touchPin = esp_sleep_get_touchpad_wakeup_status();
+
+  switch(touchPin)
+  {
+    case 0  : Serial.println("Touch detected on GPIO 4"); break;
+    case 1  : Serial.println("Touch detected on GPIO 0"); break;
+    case 2  : Serial.println("Touch detected on GPIO 2"); break;
+    case 3  : Serial.println("Touch detected on GPIO 15"); break;
+    case 4  : Serial.println("Touch detected on GPIO 13"); break;
+    case 5  : Serial.println("Touch detected on GPIO 12"); break;
+    case 6  : Serial.println("Touch detected on GPIO 14"); break;
+    case 7  : Serial.println("Touch detected on GPIO 27"); break;
+    case 8  : Serial.println("Touch detected on GPIO 33"); break;
+    case 9  : Serial.println("Touch detected on GPIO 32"); break;
+    default : Serial.println("Wakeup not by touchpad"); break;
+  }
+}
+
+
 
 void displayInit(void){
     static bool isInit = false;
@@ -117,10 +171,16 @@ void displayInit(void){
     display.update();
 }
 
+
+void callback(){
+  Estado_Juego=1;
+  //placeholder callback function
+}
+
 void setup(void) {
   Serial.begin(115200);
   EEPROM.begin(EEPROM_SIZE);
-  Estado_Juego=EEPROM.read(0);
+  // Estado_Juego=0;//EEPROM.read(0);
 
   //Init Epaper
   displayInit();
@@ -191,16 +251,25 @@ void setup(void) {
 
 
 
-
 // Inicio GPS
  //Serial.begin(115200, SERIAL_8N1);
   Serial2.begin(GPSBaud, SERIAL_8N1, RXPin , TXPin);
   Serial.println("Serial Txd is on pin: "+String(TX));
   Serial.println("Serial Rxd is on pin: "+String(RX));
+//config deepsleep
+ //Setup interrupt on Touch Pad 4
+   print_wakeup_reason();
+  print_wakeup_touchpad();
+  touchAttachInterrupt(T4, callback, Threshold);
 
+  //Configure Touchpad as wakeup source
+  esp_sleep_enable_touchpad_wakeup();
+  
 
 }
 //Variables de bucle
+
+
 
 void loop() {
 
@@ -227,7 +296,10 @@ void loop() {
       Serial.println("Estado 0 ");
       Next_Status=1;
       previousMillis = currentMillis;
-      
+      Serial.println("Going to sleep now");
+      delay(1000);
+      esp_deep_sleep_start();
+      Serial.println("This will never be printed");
     }
     break;
     case 1: //Nivel 1 del juego
